@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超進化系！アルティメット○×ゲーム</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 flex flex-col items-center justify-center min-h-screen font-sans antialiased p-4">
+
+    <div class="bg-slate-800 p-6 md:p-8 rounded-3xl shadow-2xl max-w-2xl w-full text-center border border-slate-700">
+        <h1 class="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 mb-2 tracking-wider">ULTIMATE ○×</h1>
+        <p class="text-xs md:text-sm font-medium text-slate-400 mb-6 bg-slate-800/50 py-2 rounded-full px-4 inline-block border border-slate-700">
+            小マスで勝つと大マスを獲得！先に大マスを3つ並べた方の勝ち！
+        </p>
+
+        <div id="status" class="text-lg md:text-xl font-bold text-cyan-400 mb-6 bg-slate-950 py-3 rounded-2xl border border-slate-800 shadow-inner transition-all duration-300">
+            プレイヤー ○ の番です（最初はどこでも打てます）
+        </div>
+
+        <div id="big-board" class="grid grid-cols-3 gap-3 md:gap-4 max-w-[480px] mx-auto mb-6 bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-800 shadow-2xl">
+            </div>
+
+        <button onclick="resetGame()" class="w-full max-w-[480px] bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg active:scale-[0.98]">
+            ゲームをリセットする
+        </button>
+    </div>
+
+    <script>
+        // ゲームの状態管理
+        let bigBoard = Array(9).fill(""); // 大マスの勝敗情報 ("", "○", "×", "draw")
+        let smallBoards = Array(9).fill(null).map(() => Array(9).fill("")); // 9つの小マスの盤面
+        let currentPlayer = "○";
+        let activeBigCell = -1; // 次に打たなければいけない大マスのインデックス（-1はどこでもOK）
+        let isGameActive = true;
+
+        const winConditions = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8], // 横
+            [0, 3, 6], [1, 4, 7], [2, 5, 8], // 縦
+            [0, 4, 8], [2, 4, 6]             // 斜め
+        ];
+
+        // 盤面の初期生成
+        const bigBoardElement = document.getElementById("big-board");
+        
+        function createBoard() {
+            bigBoardElement.innerHTML = "";
+            for (let b = 0; b < 9; b++) {
+                // 大マスを作成
+                const bigCell = document.createElement("div");
+                bigCell.id = `big-cell-${b}`;
+                bigCell.className = "relative bg-slate-900 rounded-xl p-2 grid grid-cols-3 gap-1 border border-slate-800 transition-all duration-300 min-h-[100px] md:min-h-[130px]";
+                
+                // 小マスを9生成
+                for (let s = 0; s < 9; s++) {
+                    const smallButton = document.createElement("button");
+                    smallButton.id = `cell-${b}-${s}`;
+                    smallButton.onclick = () => makeMove(b, s);
+                    smallButton.className = "small-cell bg-slate-800 rounded text-base md:text-xl font-bold flex items-center justify-center transition-all focus:outline-none hover:bg-slate-700 aspect-square";
+                    bigCell.appendChild(smallButton);
+                }
+                bigBoardElement.appendChild(bigCell);
+            }
+        }
+
+        function makeMove(b, s) {
+            // ゲーム終了、または指定された大マス以外、またはすでに埋まっているマスなら無視
+            if (!isGameActive) return;
+            if (activeBigCell !== -1 && activeBigCell !== b) return;
+            if (bigBoard[b] !== "") return; // すでに決着がついている大マス
+            if (smallBoards[b][s] !== "") return; // すでに埋まっている小マス
+
+            // 石を置く
+            smallBoards[b][s] = currentPlayer;
+            
+            // 小マスの勝利判定
+            if (checkSectionWin(smallBoards[b], currentPlayer)) {
+                bigBoard[b] = currentPlayer;
+            } else if (smallBoards[b].every(cell => cell !== "")) {
+                bigBoard[b] = "draw"; // そのエリアは引き分け
+            }
+
+            // 全体の大マスの勝利判定
+            if (checkSectionWin(bigBoard, currentPlayer)) {
+                endGame(`🎉 プレイヤー ${currentPlayer} の完全勝利！ 🎉`, true);
+                updateDisplay();
+                return;
+            }
+
+            // 全体の引き分け判定
+            if (bigBoard.every(cell => cell !== "")) {
+                endGame("🤝 熾烈な戦いの末、引き分けです！ 🤝", false);
+                updateDisplay();
+                return;
+            }
+
+            // 次のプレイヤーが打つべき大マスを決定
+            // 相手が送られた先の大マスがすでに決着済み(○, ×, draw)なら、次プレイヤーは「どこでも自由に打てる(-1)」
+            if (bigBoard[s] !== "") {
+                activeBigCell = -1;
+            } else {
+                activeBigCell = s;
+            }
+
+            // プレイヤー交代
+            currentPlayer = (currentPlayer === "○") ? "×" : "○";
+            
+            updateDisplay();
+        }
+
+        function checkSectionWin(board, player) {
+            return winConditions.some(condition => {
+                return condition.every(index => board[index] === player);
+            });
+        }
+
+        function updateDisplay() {
+            const statusDisplay = document.getElementById("status");
+            
+            if (isGameActive) {
+                let targetText = activeBigCell === -1 ? "どこでも自由に打てます！" : `【${getAreaName(activeBigCell)}】エリアに打ってください！`;
+                statusDisplay.innerText = `プレイヤー ${currentPlayer} の番です ➔ ${targetText}`;
+                statusDisplay.className = currentPlayer === "○" 
+                    ? "text-lg md:text-xl font-bold text-cyan-400 mb-6 bg-slate-950 py-3 rounded-2xl border border-cyan-900/50 shadow-inner" 
+                    : "text-lg md:text-xl font-bold text-rose-400 mb-6 bg-slate-950 py-3 rounded-2xl border border-rose-900/50 shadow-inner";
+            }
+
+            for (let b = 0; b < 9; b++) {
+                const bigCell = document.getElementById(`big-cell-${b}`);
+                
+                // 大マスのスタイルリセット
+                bigCell.className = "relative bg-slate-900 rounded-xl p-1.5 md:p-2 grid grid-cols-3 gap-1 border transition-all duration-300 min-h-[100px] md:min-h-[130px]";
+
+                // 決着がついた大マスの特殊演出
+                if (bigBoard[b] !== "") {
+                    bigCell.classList.add("border-slate-800");
+                    // すでに決着した大マスをマークで覆う
+                    if (!document.getElementById(`overlay-${b}`)) {
+                        const overlay = document.createElement("div");
+                        overlay.id = `overlay-${b}`;
+                        overlay.className = "absolute inset-0 flex items-center justify-center text-5xl md:text-7xl font-black rounded-xl animate-fade-in";
+                        if (bigBoard[b] === "○") {
+                            overlay.innerText = "○";
+                            overlay.className += " bg-cyan-500/20 text-cyan-400 border border-cyan-500/40";
+                        } else if (bigBoard[b] === "×") {
+                            overlay.innerText = "×";
+                            overlay.className += " bg-rose-500/20 text-rose-400 border border-rose-500/40";
+                        } else {
+                            overlay.innerText = "—";
+                            overlay.className += " bg-slate-800/50 text-slate-500";
+                        }
+                        bigCell.appendChild(overlay);
+                    }
+                } else {
+                    // まだ決着していないマス
+                    if (isGameActive && (activeBigCell === -1 || activeBigCell === b)) {
+                        // 次に打てるエリアをハイライト
+                        bigCell.classList.add(currentPlayer === "○" ? "border-cyan-500/50 bg-cyan-950/10 shadow-[0_0_15px_rgba(6,182,212,0.15)]" : "border-rose-500/50 bg-rose-950/10 shadow-[0_0_15px_rgba(244,63,94,0.15)]");
+                    } else {
+                        bigCell.classList.add("border-slate-800", "opacity-40");
+                    }
+                }
+
+                // 小マスのテキストと色を更新
+                for (let s = 0; s < 9; s++) {
+                    const smallButton = document.getElementById(`cell-${b}-${s}`);
+                    smallButton.innerText = smallBoards[b][s];
+                    smallButton.className = "small-cell bg-slate-800/80 rounded text-base md:text-xl font-bold flex items-center justify-center transition-all focus:outline-none aspect-square";
+                    
+                    if (smallBoards[b][s] === "○") smallButton.classList.add("text-cyan-400");
+                    if (smallBoards[b][s] === "×") smallButton.classList.add("text-rose-400");
+                    
+                    // 打てないマスはクリック不可にする
+                    if (!isGameActive || (activeBigCell !== -1 && activeBigCell !== b) || bigBoard[b] !== "" || smallBoards[b][s] !== "") {
+                        smallButton.classList.add("cursor-not-allowed");
+                    } else {
+                        smallButton.classList.add("hover:bg-slate-700", "cursor-pointer");
+                    }
+                }
+            }
+        }
+
+        function getAreaName(index) {
+            const names = ["左上", "上", "右上", "左", "中央", "右", "左下", "下", "右下"];
+            return names[index];
+        }
+
+        function endGame(message, isWin) {
+            isGameActive = false;
+            const statusDisplay = document.getElementById("status");
+            statusDisplay.innerText = message;
+            if (isWin) {
+                statusDisplay.className = currentPlayer === "○"
+                    ? "text-lg md:text-xl font-bold text-white mb-6 bg-gradient-to-r from-cyan-500 to-blue-500 py-3 rounded-2xl shadow-lg animate-bounce"
+                    : "text-lg md:text-xl font-bold text-white mb-6 bg-gradient-to-r from-rose-500 to-pink-500 py-3 rounded-2xl shadow-lg animate-bounce";
+            } else {
+                statusDisplay.className = "text-lg md:text-xl font-bold text-slate-300 mb-6 bg-slate-700 py-3 rounded-2xl shadow-lg";
+            }
+        }
+
+        function resetGame() {
+            bigBoard = Array(9).fill("");
+            smallBoards = Array(9).fill(null).map(() => Array(9).fill(""));
+            currentPlayer = "○";
+            activeBigCell = -1;
+            isGameActive = true;
+            createBoard();
+            updateDisplay();
+        }
+
+        // 初回起動
+        createBoard();
+        updateDisplay();
+    </script>
+</body>
+</html>

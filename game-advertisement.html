@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AD SLAYER - 広告クラッシャー</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f1a;
+    --panel: #1a1a2e;
+    --accent: #e94560;
+    --accent2: #0f3460;
+    --gold: #f5a623;
+    --green: #4caf50;
+    --text: #eaeaea;
+    --muted: #888;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ========== SCREENS ========== */
+  .screen { display: none; width: 100%; max-width: 600px; padding: 20px; }
+  .screen.active { display: flex; flex-direction: column; align-items: center; }
+
+  /* ========== START SCREEN ========== */
+  #start-screen {
+    text-align: center;
+    gap: 24px;
+  }
+
+  .game-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(20px, 5vw, 36px);
+    color: var(--accent);
+    text-shadow: 0 0 20px var(--accent), 0 0 40px var(--accent);
+    line-height: 1.4;
+    animation: titlePulse 2s ease-in-out infinite;
+  }
+
+  @keyframes titlePulse {
+    0%, 100% { text-shadow: 0 0 20px var(--accent), 0 0 40px var(--accent); }
+    50% { text-shadow: 0 0 30px var(--accent), 0 0 60px var(--accent), 0 0 80px var(--accent); }
+  }
+
+  .subtitle {
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+
+  .rules-box {
+    background: var(--panel);
+    border: 1px solid var(--accent2);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: left;
+    width: 100%;
+    font-size: 13px;
+    line-height: 2;
+  }
+
+  .rules-box h3 {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    color: var(--gold);
+    margin-bottom: 12px;
+  }
+
+  .rules-box li { margin-left: 16px; }
+
+  .btn {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 14px;
+    padding: 16px 40px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+
+  .btn:active { transform: scale(0.96); }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 4px 20px rgba(233,69,96,0.5);
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 4px 30px rgba(233,69,96,0.8);
+  }
+
+  .btn-secondary {
+    background: var(--panel);
+    color: var(--text);
+    border: 2px solid var(--accent2);
+  }
+
+  /* ========== GAME SCREEN ========== */
+  #game-screen { gap: 12px; }
+
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 10px 20px;
+    border: 1px solid var(--accent2);
+  }
+
+  .hud-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .hud-label {
+    font-size: 8px;
+    color: var(--muted);
+    font-family: 'Press Start 2P', monospace;
+  }
+
+  .hud-value {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 18px;
+    color: var(--gold);
+  }
+
+  #timer-value { color: var(--accent); }
+  #timer-value.warning { animation: timerWarn 0.5s ease-in-out infinite; }
+
+  @keyframes timerWarn {
+    0%, 100% { color: var(--accent); }
+    50% { color: #fff; }
+  }
+
+  #game-field {
+    width: 100%;
+    height: clamp(320px, 55vh, 480px);
+    background: var(--panel);
+    border-radius: 12px;
+    border: 1px solid var(--accent2);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .field-bg {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 20px,
+      rgba(15,52,96,0.1) 20px,
+      rgba(15,52,96,0.1) 21px
+    );
+  }
+
+  /* ========== AD MODALS ========== */
+  .ad-modal {
+    position: absolute;
+    background: #fff;
+    color: #222;
+    border-radius: 4px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    overflow: hidden;
+    cursor: default;
+    animation: adAppear 0.2s ease-out;
+    min-width: 160px;
+  }
+
+  @keyframes adAppear {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .ad-modal.sliding { animation: adSlide 0.6s ease-out forwards; }
+
+  @keyframes adSlide {
+    from { transform: translateY(-100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .ad-header {
+    background: #f0f0f0;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #ddd;
+    font-size: 10px;
+    color: #888;
+  }
+
+  .ad-pr-badge {
+    background: #aaa;
+    color: #fff;
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 2px;
+  }
+
+  .ad-body {
+    padding: 12px;
+    min-height: 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .ad-banner {
+    width: 100%;
+    height: 40px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 11px;
+    color: #fff;
+  }
+
+  .ad-cta {
+    background: #ff4444;
+    color: #fff;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 3px;
+    font-size: 10px;
+    cursor: pointer;
+    align-self: center;
+  }
+
+  /* Close button variants */
+  .close-btn {
+    width: 18px;
+    height: 18px;
+    background: #ccc;
+    border: 1px solid #999;
+    border-radius: 2px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #555;
+    flex-shrink: 0;
+    transition: background 0.1s;
+    line-height: 1;
+    font-family: Arial, sans-serif;
+  }
+
+  .close-btn:hover { background: #ff4444; color: #fff; }
+
+  .close-btn.tiny {
+    width: 10px;
+    height: 10px;
+    font-size: 7px;
+    border-radius: 50%;
+    background: rgba(200,200,200,0.5);
+    border: none;
+    color: #999;
+  }
+
+  .close-btn.hidden { visibility: hidden; pointer-events: none; }
+
+  .close-btn.countdown-label {
+    width: auto;
+    padding: 2px 4px;
+    font-size: 9px;
+    font-family: 'Noto Sans JP', sans-serif;
+    white-space: nowrap;
+    background: #eee;
+    color: #888;
+  }
+
+  .multi-hits {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 8px;
+    font-weight: bold;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ========== FEEDBACK FLOATERS ========== */
+  .floater {
+    position: absolute;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 11px;
+    pointer-events: none;
+    animation: floatUp 0.8s ease-out forwards;
+    z-index: 100;
+    white-space: nowrap;
+  }
+
+  .floater.plus { color: var(--green); }
+  .floater.minus { color: var(--accent); }
+
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-50px); }
+  }
+
+  /* ========== RESULT SCREEN ========== */
+  #result-screen { gap: 20px; text-align: center; }
+
+  .result-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(16px, 4vw, 24px);
+    color: var(--gold);
+  }
+
+  .score-display {
+    background: var(--panel);
+    border: 2px solid var(--gold);
+    border-radius: 12px;
+    padding: 24px 40px;
+    width: 100%;
+  }
+
+  .score-label {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .score-number {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(28px, 8vw, 48px);
+    color: var(--gold);
+  }
+
+  .score-stats {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .hi-score-note {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 9px;
+    color: var(--accent);
+    margin-top: 8px;
+    animation: titlePulse 1s infinite;
+  }
+
+  /* ========== AD SLOTS ========== */
+  .ad-slot {
+    width: 100%;
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed rgba(255,255,255,0.1);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+
+  #ad-bottom { height: 90px; max-width: 728px; }
+  #ad-result { height: 250px; max-width: 300px; }
+
+  /* ========== RESULT BUTTONS ========== */
+  .result-buttons { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+
+  .btn-share {
+    background: #1da1f2;
+    color: #fff;
+    font-size: 11px;
+    padding: 12px 24px;
+  }
+
+  /* ========== SCORE DELTA ANIMATION ========== */
+  #score-value.bump { animation: scoreBump 0.2s ease-out; }
+
+  @keyframes scoreBump {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+  }
+
+  /* ========== MOBILE ========== */
+  @media (max-width: 500px) {
+    .close-btn { width: 24px; height: 24px; font-size: 14px; }
+    .close-btn.tiny { width: 14px; height: 14px; font-size: 9px; }
+    #game-field { height: 52vh; }
+    .hud-value { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ========== START SCREEN ========== -->
+<div id="start-screen" class="screen active">
+  <div>
+    <div class="game-title">AD<br>SLAYER</div>
+    <div class="subtitle">広告クラッシャー</div>
+  </div>
+  <div class="rules-box">
+    <h3>HOW TO PLAY</h3>
+    <ul>
+      <li>広告の × を押して閉じろ！</li>
+      <li>× 正確ヒット：<strong style="color:#4caf50">+10点</strong></li>
+      <li>ミスクリック：<strong style="color:#e94560">-5点</strong></li>
+      <li>制限時間：<strong style="color:#f5a623">60秒</strong></li>
+      <li>時間が経つほど難しくなるぞ</li>
+    </ul>
+  </div>
+  <button class="btn btn-primary" id="start-btn">START GAME</button>
+  <div id="ad-start" class="ad-slot" style="height:90px;max-width:728px;width:100%;">
+    <!-- AdSense広告スロット（スタート画面下部）-->
+    <!-- ここにAdSenseコードを貼り付ける -->
+    AD SPACE
+  </div>
+</div>
+
+<!-- ========== GAME SCREEN ========== -->
+<div id="game-screen" class="screen">
+  <div class="hud">
+    <div class="hud-item">
+      <span class="hud-label">TIME</span>
+      <span class="hud-value" id="timer-value">60</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">SCORE</span>
+      <span class="hud-value" id="score-value">0</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label">CLOSED</span>
+      <span class="hud-value" id="closed-value">0</span>
+    </div>
+  </div>
+
+  <div id="game-field">
+    <div class="field-bg"></div>
+  </div>
+
+  <!-- AdSense広告スロット（ゲーム画面下部 728x90）-->
+  <div class="ad-slot" id="ad-bottom">
+    <!-- ここにAdSenseコードを貼り付ける -->
+    AD SPACE (728×90)
+  </div>
+</div>
+
+<!-- ========== RESULT SCREEN ========== -->
+<div id="result-screen" class="screen">
+  <div class="result-title" id="result-title">GAME OVER</div>
+
+  <div class="score-display">
+    <div class="score-label">FINAL SCORE</div>
+    <div class="score-number" id="final-score">0</div>
+    <div class="score-stats">
+      <span>閉じた：<strong id="stat-closed">0</strong></span>
+      <span>ミス：<strong id="stat-miss">0</strong></span>
+    </div>
+    <div class="hi-score-note" id="hi-score-note" style="display:none">NEW HI-SCORE!</div>
+  </div>
+
+  <div class="score-display" style="border-color:var(--accent2)">
+    <div class="score-label">HI-SCORE</div>
+    <div class="score-number" id="hi-score-display" style="color:var(--text);font-size:24px">0</div>
+  </div>
+
+  <!-- AdSense広告スロット（リザルト画面 300x250）-->
+  <div class="ad-slot" id="ad-result">
+    <!-- ここにAdSenseコードを貼り付ける -->
+    AD SPACE (300×250)
+  </div>
+
+  <div class="result-buttons">
+    <button class="btn btn-primary" id="retry-btn">RETRY</button>
+    <button class="btn btn-share" id="share-btn">X でシェア</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  STATE
+// ============================================================
+const state = {
+  score: 0,
+  closed: 0,
+  misses: 0,
+  timeLeft: 60,
+  running: false,
+  timerInterval: null,
+  spawnInterval: null,
+  activeModals: [],
+  hiScore: parseInt(localStorage.getItem('adslayer_hi') || '0'),
+};
+
+// ============================================================
+//  SCREENS
+// ============================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ============================================================
+//  SCORE
+// ============================================================
+function addScore(delta, x, y) {
+  state.score = Math.max(0, state.score + delta);
+  const el = document.getElementById('score-value');
+  el.textContent = state.score;
+  el.classList.remove('bump');
+  void el.offsetWidth;
+  el.classList.add('bump');
+
+  spawnFloater(delta, x, y);
+}
+
+function spawnFloater(delta, x, y) {
+  const field = document.getElementById('game-field');
+  const rect = field.getBoundingClientRect();
+  const f = document.createElement('div');
+  f.className = 'floater ' + (delta > 0 ? 'plus' : 'minus');
+  f.textContent = (delta > 0 ? '+' : '') + delta;
+  f.style.left = (x - rect.left) + 'px';
+  f.style.top = (y - rect.top) + 'px';
+  field.appendChild(f);
+  setTimeout(() => f.remove(), 900);
+}
+
+// ============================================================
+//  TIMER
+// ============================================================
+function startTimer() {
+  state.timerInterval = setInterval(() => {
+    state.timeLeft--;
+    const el = document.getElementById('timer-value');
+    el.textContent = state.timeLeft;
+    if (state.timeLeft <= 10) el.classList.add('warning');
+    if (state.timeLeft <= 0) endGame();
+  }, 1000);
+}
+
+// ============================================================
+//  DIFFICULTY (0=easy → 1=hard, increases over 60s)
+// ============================================================
+function difficulty() {
+  return 1 - (state.timeLeft / 60);
+}
+
+// Pattern weights by difficulty
+function pickPattern() {
+  const d = difficulty();
+  const weights = [
+    // [patternId, weight at d=0, weight at d=1]
+    [1, 50, 10],  // basic
+    [2, 20, 30],  // delayed ×
+    [3, 10, 25],  // multi-hit
+    [4, 10, 20],  // sliding
+    [5,  5, 15],  // tiny ×
+  ];
+  const ws = weights.map(([id, w0, w1]) => [id, w0 + (w1 - w0) * d]);
+  const total = ws.reduce((a, [, w]) => a + w, 0);
+  let r = Math.random() * total;
+  for (const [id, w] of ws) {
+    r -= w;
+    if (r <= 0) return id;
+  }
+  return 1;
+}
+
+// ============================================================
+//  MODAL FACTORY
+// ============================================================
+const AD_COLORS = ['#e74c3c','#3498db','#2ecc71','#9b59b6','#f39c12','#1abc9c'];
+const AD_TEXTS = [
+  ['お得なキャンペーン実施中！', '今すぐチェック'],
+  ['あなたのIQは？', '診断する'],
+  ['スマホが当たる！', '応募はこちら'],
+  ['副業で月100万！', '詳細を見る'],
+  ['出会い系サイト', '無料登録'],
+  ['驚きの新商品', '限定公開中'],
+];
+
+function makeAdModal(patternId) {
+  const field = document.getElementById('game-field');
+  const fw = field.clientWidth;
+  const fh = field.clientHeight;
+
+  const modal = document.createElement('div');
+  modal.className = 'ad-modal';
+  modal.dataset.pattern = patternId;
+
+  const color = AD_COLORS[Math.floor(Math.random() * AD_COLORS.length)];
+  const [headline, cta] = AD_TEXTS[Math.floor(Math.random() * AD_TEXTS.length)];
+
+  const w = patternId === 5 ? 160 : Math.floor(Math.random() * 80) + 170;
+  modal.style.width = w + 'px';
+
+  // Position (keep inside field)
+  const maxX = fw - w - 10;
+  const maxY = fh - 120;
+  let left = Math.floor(Math.random() * Math.max(10, maxX)) + 5;
+  let top = patternId === 4 ? 0 : Math.floor(Math.random() * Math.max(10, maxY)) + 5;
+  modal.style.left = left + 'px';
+  modal.style.top = top + 'px';
+
+  // Build inner HTML
+  const closeId = 'close-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+  modal.innerHTML = `
+    <div class="ad-header">
+      <span class="ad-pr-badge">広告</span>
+      <div style="position:relative">
+        <button class="close-btn" id="${closeId}">×</button>
+      </div>
+    </div>
+    <div class="ad-body">
+      <div class="ad-banner" style="background:${color}">${headline}</div>
+      <button class="ad-cta">${cta}</button>
+    </div>
+  `;
+
+  return { modal, closeId };
+}
+
+// ============================================================
+//  PATTERN IMPLEMENTATIONS
+// ============================================================
+function spawnModal() {
+  if (!state.running) return;
+  if (state.activeModals.length >= 4) return; // cap concurrent ads
+
+  const patternId = pickPattern();
+  const { modal, closeId } = makeAdModal(patternId);
+  const field = document.getElementById('game-field');
+
+  // --- Pattern-specific setup ---
+  switch (patternId) {
+    case 2: { // Delayed ×
+      const delay = 3000 + Math.random() * 2000;
+      const btn = modal.querySelector(`#${closeId}`);
+      btn.classList.add('hidden');
+      btn.classList.add('countdown-label');
+      btn.textContent = '...';
+      let remaining = Math.ceil(delay / 1000);
+      const tick = setInterval(() => {
+        remaining--;
+        if (remaining > 0) btn.textContent = remaining + 's';
+        else {
+          btn.textContent = '×';
+          btn.classList.remove('hidden', 'countdown-label');
+          clearInterval(tick);
+        }
+      }, 1000);
+      modal._clearCountdown = () => clearInterval(tick);
+      break;
+    }
+    case 3: { // Multi-hit
+      modal._hitsLeft = 3;
+      const btn = modal.querySelector(`#${closeId}`);
+      const badge = document.createElement('div');
+      badge.className = 'multi-hits';
+      badge.textContent = '3';
+      btn.parentElement.appendChild(badge);
+      modal._badge = badge;
+      break;
+    }
+    case 4: { // Sliding
+      modal.classList.add('sliding');
+      const btn = modal.querySelector(`#${closeId}`);
+      btn.classList.add('hidden');
+      setTimeout(() => {
+        if (modal.isConnected) btn.classList.remove('hidden');
+      }, 650);
+      break;
+    }
+    case 5: { // Tiny ×
+      const btn = modal.querySelector(`#${closeId}`);
+      btn.classList.add('tiny');
+      break;
+    }
+  }
+
+  // -------- CLICK HANDLER --------
+  modal.addEventListener('click', (e) => {
+    if (!state.running) return;
+
+    const btn = document.getElementById(closeId);
+    const isClose = e.target === btn || btn.contains(e.target);
+
+    if (!isClose) {
+      // Misclick
+      state.misses++;
+      addScore(-5, e.clientX, e.clientY);
+      modal.style.border = '2px solid #e94560';
+      setTimeout(() => { if (modal.isConnected) modal.style.border = ''; }, 300);
+      return;
+    }
+
+    // Close button logic
+    if (btn.classList.contains('hidden') || btn.classList.contains('countdown-label')) return;
+
+    if (patternId === 3) {
+      // Multi-hit
+      modal._hitsLeft--;
+      if (modal._hitsLeft > 0) {
+        modal._badge.textContent = modal._hitsLeft;
+        modal.style.animation = 'none';
+        void modal.offsetWidth;
+        modal.style.animation = '';
+        addScore(3, e.clientX, e.clientY); // partial credit
+        return;
+      }
+    }
+
+    // Successfully closed
+    let bonus = 0;
+    if (patternId === 5) bonus = 10; // tiny × bonus
+    if (patternId === 2) bonus = 5;  // waited bonus
+    if (patternId === 3) bonus = 5;  // multi-hit bonus
+
+    state.closed++;
+    document.getElementById('closed-value').textContent = state.closed;
+    addScore(10 + bonus, e.clientX, e.clientY);
+
+    if (modal._clearCountdown) modal._clearCountdown();
+    removeModal(modal);
+  });
+
+  field.appendChild(modal);
+  state.activeModals.push(modal);
+
+  // Auto-remove after 8 seconds if not closed
+  modal._autoRemove = setTimeout(() => removeModal(modal), 8000);
+}
+
+function removeModal(modal) {
+  clearTimeout(modal._autoRemove);
+  if (modal._clearCountdown) modal._clearCountdown();
+  modal.style.animation = 'none';
+  modal.style.opacity = '0';
+  modal.style.transform = 'scale(0.8)';
+  modal.style.transition = 'opacity 0.15s, transform 0.15s';
+  setTimeout(() => {
+    modal.remove();
+    state.activeModals = state.activeModals.filter(m => m !== modal);
+  }, 150);
+}
+
+// ============================================================
+//  SPAWN SCHEDULER
+// ============================================================
+function getSpawnDelay() {
+  const d = difficulty();
+  // 2000ms at start → 600ms near end
+  return Math.max(600, 2000 - d * 1400);
+}
+
+function scheduleNextSpawn() {
+  if (!state.running) return;
+  const delay = getSpawnDelay();
+  state.spawnInterval = setTimeout(() => {
+    spawnModal();
+    scheduleNextSpawn();
+  }, delay);
+}
+
+// ============================================================
+//  GAME START / END
+// ============================================================
+function startGame() {
+  state.score = 0;
+  state.closed = 0;
+  state.misses = 0;
+  state.timeLeft = 60;
+  state.running = true;
+  state.activeModals = [];
+
+  document.getElementById('score-value').textContent = '0';
+  document.getElementById('closed-value').textContent = '0';
+  document.getElementById('timer-value').textContent = '60';
+  document.getElementById('timer-value').classList.remove('warning');
+
+  // Clear field
+  const field = document.getElementById('game-field');
+  field.querySelectorAll('.ad-modal').forEach(m => m.remove());
+
+  showScreen('game-screen');
+  startTimer();
+  spawnModal(); // immediate first spawn
+  scheduleNextSpawn();
+}
+
+function endGame() {
+  state.running = false;
+  clearInterval(state.timerInterval);
+  clearTimeout(state.spawnInterval);
+
+  // Clear remaining modals
+  state.activeModals.forEach(m => {
+    clearTimeout(m._autoRemove);
+    if (m._clearCountdown) m._clearCountdown();
+    m.remove();
+  });
+  state.activeModals = [];
+
+  // Hi-score
+  const isNew = state.score > state.hiScore;
+  if (isNew) {
+    state.hiScore = state.score;
+    localStorage.setItem('adslayer_hi', state.hiScore);
+  }
+
+  document.getElementById('final-score').textContent = state.score;
+  document.getElementById('stat-closed').textContent = state.closed;
+  document.getElementById('stat-miss').textContent = state.misses;
+  document.getElementById('hi-score-display').textContent = state.hiScore;
+  document.getElementById('hi-score-note').style.display = isNew ? 'block' : 'none';
+  document.getElementById('result-title').textContent = state.score >= 300 ? 'EXCELLENT!' : state.score >= 150 ? 'GREAT!' : 'GAME OVER';
+
+  showScreen('result-screen');
+}
+
+// ============================================================
+//  SHARE
+// ============================================================
+function shareResult() {
+  const text = `【AD SLAYER】\n広告クラッシャーで${state.score}点取ったぞ！🎯\n${state.closed}個の広告を撃退！\n#ADSlayer #広告クラッシャー`;
+  const url = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text);
+  window.open(url, '_blank');
+}
+
+// ============================================================
+//  EVENT LISTENERS
+// ============================================================
+document.getElementById('start-btn').addEventListener('click', startGame);
+document.getElementById('retry-btn').addEventListener('click', startGame);
+document.getElementById('share-btn').addEventListener('click', shareResult);
+
+// Prevent misclick on game field background from counting as modal miss
+document.getElementById('game-field').addEventListener('click', (e) => {
+  if (!state.running) return;
+  if (e.target.id === 'game-field' || e.target.classList.contains('field-bg')) {
+    // click on field background – no penalty
+  }
+});
+
+// ============================================================
+//  INIT
+// ============================================================
+document.getElementById('hi-score-display').textContent = state.hiScore;
+
+/*
+============================================================
+  FUTURE PATTERNS (コメントアウト – 未実装)
+============================================================
+
+【パターン6: 偽×】
+- 押しても閉じない
+- 別の場所に本物の×がある
+- modal._realCloseId でトラッキング
+
+【パターン7: 動く×】
+- closeBtn に CSS animation を付けてボタンを動き回らせる
+- requestAnimationFrame でランダム移動
+
+【パターン8: 透明×】
+- closeBtn の opacity: 0.05 にする
+- hover しても変わらない
+
+============================================================
+*/
+</script>
+
+<!-- Google AdSense -->
+<!--
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX"
+     crossorigin="anonymous"></script>
+-->
+
+</body>
+</html>
